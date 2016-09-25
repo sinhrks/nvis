@@ -1,0 +1,32 @@
+language: python
+env:
+  matrix:
+    - PYTHON=2.7
+    - PYTHON=3.4
+    - PYTHON=3.5
+
+install:
+  - if [[ "$PYTHON" == "2.7" ]]; then
+      wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda config --add channels pandas
+  - conda update -q conda
+  - conda info -a
+  - conda create -q -n test-environment python=$PYTHON pip nose
+  - source activate test-environment
+  - python -m pip install flake8 python-coveralls coverage
+  - python setup.py install
+
+script:
+  - nosetests --with-coverage --cover-package=nvis
+  - flake8 --ignore E501 nvis
+
+after_success:
+  - coveralls
+

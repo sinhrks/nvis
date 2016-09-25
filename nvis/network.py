@@ -3,12 +3,11 @@
 
 from __future__ import unicode_literals
 
-import collections
 import os
 import six
-import traitlets
 
 from nvis.base import _JSObject
+from nvis.color import Color
 
 
 class Network(_JSObject):
@@ -35,12 +34,13 @@ class Network(_JSObject):
 
         def require_js(js_path):
             return """<script>
-        require(["{0}"], function(lib) {{
-            window.vis = jQuery.extend(true, {{}}, lib);
-        }});
-        </script>""".format(js_path)
+  require(["{0}"], function(lib) {{
+    window.vis = jQuery.extend(true, {{}}, lib);
+  }});
+</script>""".format(js_path)
 
-        css = """<link rel="stylesheet" href="{0}" type="text/css">""".format(css)
+        css_fmt = """<link rel="stylesheet" href="{0}" type="text/css">"""
+        css = css_fmt.format(css)
 
         return [require_js(js), css]
 
@@ -74,9 +74,9 @@ class Network(_JSObject):
     @property
     def script(self):
         scripts = ["var container = document.getElementById('{0}');".format(self.divid),
-                   self._nodes_html,
-                   self._edges_html,
-                   self._data_html,
+                   self._nodes_script,
+                   self._edges_script,
+                   "var data = {nodes: nodes, edges: edges};",
                    "var options = {};",
                    "var network = new vis.Network(container, data, options);"]
         return scripts
@@ -105,36 +105,14 @@ class Network(_JSObject):
         self._edges.append(edge)
 
     @property
-    def _nodes_html(self):
-        nodes_html = [n._repr_html() for n in self._nodes]
-        return "var nodes = new vis.DataSet([" + ",".join(nodes_html) + "]);"
+    def _nodes_script(self):
+        scripts = [n.script for n in self._nodes]
+        return "var nodes = new vis.DataSet([" + ",".join(scripts) + "]);"
 
     @property
-    def _edges_html(self):
-        edges_html = [e._repr_html() for e in self._edges]
-        return "var edges = new vis.DataSet([" + ",".join(edges_html) + "]);"
-
-    @property
-    def _data_html(self):
-        return "var data = {nodes: nodes, edges: edges};"
-
-
-class Color(object):
-
-    def __init__(color=None):
-        self.color = color
-
-    def _validate_color(self, color):
-        # ToDo: Py3
-        if isinstance(color, str):
-            return color
-        elif isinstance(color, tuple):
-            if len(color == 3):
-                return "rgb({0}, {1}, {2})".format(*color)
-            elif len(color == 4):
-                return "rgb({0}, {1}, {2}, {3})".format(*color)
-            else:
-                raise ValueError
+    def _edges_script(self):
+        scripts = [e.script for e in self._edges]
+        return "var edges = new vis.DataSet([" + ",".join(scripts) + "]);"
 
 
 class Node(object):
@@ -142,17 +120,22 @@ class Node(object):
     def __init__(self, id, label, color=None):
         self.id = id
         self.label = label
-        self.color = color
 
-    def _repr_html(self):
+        if color is not None:
+            self.color = Color(color=color)
+        else:
+            self.color = None
+
+    @property
+    def script(self):
         attrs = ['id', 'label', 'color']
 
         result = []
         for attr in attrs:
             obj = getattr(self, attr)
             if obj is not None:
-                if hasattr(obj, '_repr_html_'):
-                    value = "{0}:{1}".format(attr, obj._repr_html_())
+                if hasattr(obj, 'script'):
+                    value = "{0}:{1}".format(attr, obj.script)
 
                 elif isinstance(obj, str):
                     value = "{0}:'{1}'".format(attr, obj)
@@ -169,8 +152,7 @@ class Edge(object):
         self.node1 = node1
         self.node2 = node2
 
-    def _repr_html(self):
+    @property
+    def script(self):
         fmt = "{{from: {node1}, to: {node2}}}"
         return fmt.format(node1=self.node1, node2=self.node2)
-
-
