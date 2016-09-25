@@ -1,0 +1,4 @@
+include MANIFEST.in
+include LICENSES/*
+include requirements.txt
+include setup.py
